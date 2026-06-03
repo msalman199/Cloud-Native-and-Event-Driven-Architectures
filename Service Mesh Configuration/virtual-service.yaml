@@ -1,0 +1,54 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: backend-route
+  namespace: microservices
+spec:
+  hosts:
+    - backend
+  http:
+    # Rule 1: Match premium users and route to v2
+    - match:
+        - headers:
+            user-type:
+              exact: premium
+      route:
+        - destination:
+            host: backend
+            subset: v2
+    # Rule 2: Match test users and route to v2 (Task 2 Implemented)
+    - match:
+        - headers:
+            test-user:
+              exact: "true"
+      route:
+        - destination:
+            host: backend
+            subset: v2
+    # Default Route: Split weight 90/10 (Task 1 Implemented)
+    - route:
+        - destination:
+            host: backend
+            subset: v1
+          weight: 90
+        - destination:
+            host: backend
+            subset: v2
+          weight: 10
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: frontend-route
+  namespace: microservices
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - microservices-gateway
+  http:
+    - route:
+        - destination:
+            host: frontend
+            port:
+              number: 80
