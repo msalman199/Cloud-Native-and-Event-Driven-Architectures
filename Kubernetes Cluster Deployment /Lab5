@@ -1,0 +1,365 @@
+Kubernetes Cluster Deployment
+Prerequisites
+Basic Linux command-line knowledge
+Understanding of containerization concepts (Docker basics)
+Familiarity with YAML syntax
+Basic networking concepts (ports, IP addresses)
+Root or sudo access to a Linux machine
+Learning Objectives
+By completing this lab, you will:
+
+Set up a single-node Kubernetes cluster using Minikube
+Deploy containerized applications as pods
+Create and manage Kubernetes services
+Expose applications for external access
+Verify cluster health and application status
+Environment Setup
+System Requirements
+Linux machine (Ubuntu 20.04+ or similar)
+Minimum 2 CPU cores
+2GB RAM minimum (4GB recommended)
+20GB free disk space
+Internet connection for downloading tools
+Install Required Tools
+Step 1: Install Docker
+
+# Update package index
+sudo apt-get update
+
+# Install Docker
+sudo apt-get install -y docker.io
+
+# Start and enable Docker
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add current user to docker group
+sudo usermod -aG docker $USER
+
+# Apply group changes (or logout/login)
+newgrp docker
+Step 2: Install kubectl
+
+# Download kubectl binary
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
+# Make it executable
+chmod +x kubectl
+
+# Move to system path
+sudo mv kubectl /usr/local/bin/
+
+# Verify installation
+kubectl version --client
+Step 3: Install Minikube
+
+# Download Minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+
+# Install Minikube
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+# Verify installation
+minikube version
+Task 1: Setup Kubernetes Cluster
+Step 1: Start Minikube Cluster
+# Start Minikube with Docker driver
+minikube start --driver=docker
+
+# Wait for cluster to be ready (this may take 2-3 minutes)
+Step 2: Verify Cluster Status
+# Check cluster status
+minikube status
+
+# View cluster information
+kubectl cluster-info
+
+# List all nodes
+kubectl get nodes
+
+# Check system pods
+kubectl get pods -n kube-system
+Expected output should show:
+
+Minikube running
+One node in "Ready" state
+System pods in "Running" state
+Step 3: Enable Minikube Dashboard (Optional)
+# Enable metrics server
+minikube addons enable metrics-server
+
+# View enabled addons
+minikube addons list
+Task 2: Deploy Pods and Services
+Step 1: Create Application Deployment
+Create a deployment manifest file:
+
+# Create working directory
+mkdir -p ~/k8s-lab
+cd ~/k8s-lab
+
+# Create deployment file
+cat > nginx-deployment.yaml << 'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+EOF
+Apply the deployment:
+
+# Deploy the application
+kubectl apply -f nginx-deployment.yaml
+
+# Watch deployment progress
+kubectl get deployments -w
+# Press Ctrl+C after deployment shows 3/3 ready
+Step 2: Verify Pod Deployment
+# List all pods
+kubectl get pods
+
+# Get detailed pod information
+kubectl get pods -o wide
+
+# Describe a specific pod (replace POD_NAME with actual pod name)
+kubectl describe pod <POD_NAME>
+
+# Check pod logs
+kubectl logs <POD_NAME>
+Step 3: Create Service to Expose Application
+Create a service manifest:
+
+cat > nginx-service.yaml << 'EOF'
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  type: NodePort
+  selector:
+    app: nginx
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+    nodePort: 30080
+EOF
+Apply the service:
+
+# Create the service
+kubectl apply -f nginx-service.yaml
+
+# Verify service creation
+kubectl get services
+
+# Get detailed service information
+kubectl describe service nginx-service
+Step 4: Access the Application
+# Get Minikube IP
+minikube ip
+
+# Get service URL
+minikube service nginx-service --url
+
+# Test the application
+curl $(minikube service nginx-service --url)
+You should see the default Nginx welcome page HTML.
+
+Step 5: Scale the Deployment
+# Scale deployment to 5 replicas
+kubectl scale deployment nginx-deployment --replicas=5
+
+# Watch scaling progress
+kubectl get pods -w
+# Press Ctrl+C after all pods are running
+
+# Verify replica count
+kubectl get deployment nginx-deployment
+Step 6: Create a Custom Application Deployment
+Create a simple web application deployment:
+
+cat > webapp-deployment.yaml << 'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: webapp
+  template:
+    metadata:
+      labels:
+        app: webapp
+    spec:
+      containers:
+      - name: webapp
+        image: hashicorp/http-echo
+        args:
+        - "-text=Hello from Kubernetes Pod"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-service
+spec:
+  type: NodePort
+  selector:
+    app: webapp
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+    nodePort: 30081
+EOF
+Deploy and test:
+
+# Apply the configuration
+kubectl apply -f webapp-deployment.yaml
+
+# Wait for pods to be ready
+kubectl wait --for=condition=ready pod -l app=webapp --timeout=60s
+
+# Test the application
+curl $(minikube service webapp-service --url)
+Verification
+Verify Cluster Health
+# Check all resources in default namespace
+kubectl get all
+
+# Verify node status
+kubectl get nodes
+
+# Check cluster component status
+kubectl get componentstatuses
+Verify Deployments
+# List all deployments
+kubectl get deployments
+
+# Expected output:
+# - nginx-deployment: 5/5 replicas ready
+# - webapp: 2/2 replicas ready
+Verify Services
+# List all services
+kubectl get services
+
+# Test nginx service
+curl $(minikube service nginx-service --url)
+
+# Test webapp service
+curl $(minikube service webapp-service --url)
+Verify Pods
+# Count running pods
+kubectl get pods --field-selector=status.phase=Running | wc -l
+
+# Should show 7 running pods (5 nginx + 2 webapp)
+
+# Check pod resource usage
+kubectl top pods
+View Logs
+# View logs from nginx deployment
+kubectl logs -l app=nginx --tail=20
+
+# View logs from webapp deployment
+kubectl logs -l app=webapp --tail=20
+Troubleshooting Tips
+Pods not starting:
+
+# Check pod events
+kubectl describe pod <POD_NAME>
+
+# Check pod logs
+kubectl logs <POD_NAME>
+
+# Check if images are pulling
+kubectl get pods -o wide
+Service not accessible:
+
+# Verify service endpoints
+kubectl get endpoints
+
+# Check service configuration
+kubectl describe service <SERVICE_NAME>
+
+# Ensure Minikube tunnel is not needed
+minikube service list
+Minikube issues:
+
+# Stop and restart Minikube
+minikube stop
+minikube start
+
+# Delete and recreate cluster
+minikube delete
+minikube start --driver=docker
+Resource constraints:
+
+# Check node resources
+kubectl describe node minikube
+
+# View resource usage
+kubectl top nodes
+kubectl top pods
+Cleanup (Optional)
+# Delete deployments
+kubectl delete deployment nginx-deployment webapp
+
+# Delete services
+kubectl delete service nginx-service webapp-service
+
+# Stop Minikube
+minikube stop
+
+# Delete Minikube cluster (complete cleanup)
+minikube delete
+Conclusion
+In this lab, you successfully:
+
+Installed and configured Minikube for local Kubernetes development
+Created a single-node Kubernetes cluster
+Deployed multiple containerized applications using Deployments
+Exposed applications using Services with NodePort type
+Scaled deployments dynamically
+Verified cluster health and application accessibility
+Key Concepts Learned:
+
+Minikube: Local Kubernetes cluster for development and testing
+Deployments: Declarative way to manage pod replicas
+Services: Stable network endpoints for accessing pods
+kubectl: Command-line tool for Kubernetes cluster management
+Scaling: Adjusting application capacity based on demand
+Real-World Applications:
+
+Development and testing environments before production deployment
+Microservices architecture implementation
+Container orchestration and management
+High availability and load balancing
+Rolling updates and rollbacks
+This foundation prepares you for more advanced Kubernetes concepts like ConfigMaps, Secrets, Persistent Volumes, and multi-node cluster management.
