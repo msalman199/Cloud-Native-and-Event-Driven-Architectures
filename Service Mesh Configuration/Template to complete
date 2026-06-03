@@ -1,0 +1,40 @@
+Step 5: Implement Advanced Routing Pattern
+Student Exercise: Create a new VirtualService that implements the following:
+
+Route requests with URI prefix /api/v1 to backend-v1
+Route requests with URI prefix /api/v2 to backend-v2
+All other requests default to 50/50 split
+Template to complete:
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: backend-advanced-route
+  namespace: microservices
+spec:
+  hosts:
+  - backend
+  http:
+  # TODO: Add match condition for /api/v1 prefix
+  - match:
+    - uri:
+        prefix: # COMPLETE THIS
+    route:
+    - destination:
+        host: # COMPLETE THIS
+        subset: # COMPLETE THIS
+  # TODO: Add match condition for /api/v2 prefix
+  - match:
+    - # COMPLETE THIS SECTION
+    route:
+    - # COMPLETE THIS SECTION
+  # TODO: Add default route with 50/50 split
+  - route:
+    - destination:
+        host: backend
+        subset: v1
+      weight: # COMPLETE THIS
+    - destination:
+        host: backend
+        subset: v2
+      weight: # COMPLETE THIS
