@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-v2
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: backend
+        version: v2
+    spec:
+      containers:
+      - name: backend
+        image: hashicorp/http-echo
+        args:
+        - "-text=Backend v2 - New Features!"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
