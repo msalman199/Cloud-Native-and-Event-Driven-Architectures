@@ -1,0 +1,282 @@
+ Service Mesh Configuration
+Prerequisites
+Before starting this lab, you should have:
+
+Basic understanding of Kubernetes concepts (pods, services, deployments)
+Familiarity with YAML configuration files
+Experience with command-line tools
+Knowledge of microservices architecture fundamentals
+A Linux machine with at least 4GB RAM and 2 CPU cores
+Learning Objectives
+By completing this lab, you will:
+
+Install and configure Istio service mesh on Kubernetes
+Deploy microservices with Istio sidecar injection
+Configure traffic routing rules using VirtualServices
+Implement basic traffic management patterns
+Environment Setup
+Step 1: Install Required Tools
+Install kubectl:
+
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+Install Minikube:
+
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+Install Istioctl:
+
+curl -L https://istio.io/downloadIstio | sh -
+cd istio-*
+export PATH=$PWD/bin:$PATH
+cd ..
+Step 2: Start Kubernetes Cluster
+minikube start --memory=4096 --cpus=2 --driver=docker
+Verify cluster is running:
+
+kubectl cluster-info
+kubectl get nodes
+Task 1: Install and Configure Istio
+Step 1: Install Istio
+Install Istio with the demo profile:
+
+istioctl install --set profile=demo -y
+Verify installation:
+
+kubectl get pods -n istio-system
+Wait until all pods show STATUS as "Running".
+
+Step 2: Enable Automatic Sidecar Injection
+Create a namespace with Istio injection enabled:
+
+kubectl create namespace microservices
+kubectl label namespace microservices istio-injection=enabled
+Verify the label:
+
+kubectl get namespace microservices --show-labels
+Step 3: Deploy Sample Microservices
+Create a file named app-v1.yaml: ```yaml apiVersion: v1 kind: Service metadata: name: frontend namespace: microservices spec: selector: app: frontend ports: - port: 80 targetPort: 8080
+apiVersion: apps/v1 kind: Deployment metadata: name: frontend-v1 namespace: microservices spec: replicas: 1 selector: matchLabels: app: frontend version: v1 template: metadata: labels: app: frontend version: v1 spec: containers: - name: frontend image: hashicorp/http-echo args: - "-text=Frontend v1" - "-listen=:8080" ports: - containerPort: 8080
+apiVersion: v1 kind: Service metadata: name: backend namespace: microservices spec: selector: app: backend ports: - port: 80 targetPort: 8080
+apiVersion: apps/v1 kind: Deployment metadata: name: backend-v1 namespace: microservices spec: replicas: 1 selector: matchLabels: app: backend version: v1 template: metadata: labels: app: backend version: v1 spec: containers: - name: backend image: hashicorp/http-echo args: - "-text=Backend v1" - "-listen=:8080" ports: - containerPort: 8080
+
+
+Deploy the applications:
+```bash
+kubectl apply -f app-v1.yaml
+Verify deployments:
+
+kubectl get pods -n microservices
+Check that each pod has 2 containers (application + Istio sidecar):
+
+kubectl get pods -n microservices -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[*].name}{"\n"}{end}'
+Step 4: Deploy Second Version for Traffic Splitting
+Create app-v2.yaml:
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-v2
+  namespace: microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: backend
+        version: v2
+    spec:
+      containers:
+      - name: backend
+        image: hashicorp/http-echo
+        args:
+        - "-text=Backend v2 - New Features!"
+        - "-listen=:8080"
+        ports:
+        - containerPort: 8080
+Deploy v2:
+
+kubectl apply -f app-v2.yaml
+kubectl get pods -n microservices
+Task 2: Configure Traffic Routing
+Step 1: Create Gateway for External Access
+Create gateway.yaml:
+
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: microservices-gateway
+  namespace: microservices
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+Apply the gateway:
+
+kubectl apply -f gateway.yaml
+Step 2: Configure Destination Rules
+Create destination-rules.yaml:
+
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: backend-destination
+  namespace: microservices
+spec:
+  host: backend
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
+Apply destination rules:
+
+kubectl apply -f destination-rules.yaml
+Step 3: Implement Traffic Splitting
+Create virtual-service.yaml with TODO sections for students to complete: ```yaml apiVersion: networking.istio.io/v1beta1 kind: VirtualService metadata: name: backend-route namespace: microservices spec: hosts: - backend http: - match: - headers: user-type: exact: premium route: - destination: host: backend subset: v2 - route: - destination: host: backend subset: v1 weight: 70 - destination: host: backend subset: v2 weight: 30
+apiVersion: networking.istio.io/v1beta1 kind: VirtualService metadata: name: frontend-route namespace: microservices spec: hosts:
+
+"*" gateways:
+microservices-gateway http:
+route:
+destination: host: frontend port: number: 80
+
+**TODO for Students:**
+1. Modify the weight distribution to send 90% traffic to v1 and 10% to v2
+2. Add a second header-based routing rule that routes users with header `test-user: true` to v2
+
+Apply your configuration:
+```bash
+kubectl apply -f virtual-service.yaml
+Step 4: Test Traffic Routing
+Get the ingress gateway URL:
+
+export INGRESS_HOST=$(minikube ip)
+export INGRESS_PORT=$(kubectl -n istio-system get service istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}')
+export GATEWAY_URL=$INGRESS_HOST:$INGRESS_PORT
+echo "Gateway URL: http://$GATEWAY_URL"
+Test basic routing:
+
+curl http://$GATEWAY_URL
+Test multiple requests to observe traffic splitting:
+
+for i in {1..10}; do curl -s http://$GATEWAY_URL; echo ""; done
+Test header-based routing:
+
+curl -H "user-type: premium" http://$GATEWAY_URL
+Step 5: Implement Advanced Routing Pattern
+Student Exercise: Create a new VirtualService that implements the following:
+
+Route requests with URI prefix /api/v1 to backend-v1
+Route requests with URI prefix /api/v2 to backend-v2
+All other requests default to 50/50 split
+Template to complete:
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: backend-advanced-route
+  namespace: microservices
+spec:
+  hosts:
+  - backend
+  http:
+  # TODO: Add match condition for /api/v1 prefix
+  - match:
+    - uri:
+        prefix: # COMPLETE THIS
+    route:
+    - destination:
+        host: # COMPLETE THIS
+        subset: # COMPLETE THIS
+  # TODO: Add match condition for /api/v2 prefix
+  - match:
+    - # COMPLETE THIS SECTION
+    route:
+    - # COMPLETE THIS SECTION
+  # TODO: Add default route with 50/50 split
+  - route:
+    - destination:
+        host: backend
+        subset: v1
+      weight: # COMPLETE THIS
+    - destination:
+        host: backend
+        subset: v2
+      weight: # COMPLETE THIS
+Verification
+Verify Istio Installation
+kubectl get pods -n istio-system
+istioctl version
+Expected output: All pods running, client and control plane versions match.
+
+Verify Sidecar Injection
+kubectl get pods -n microservices -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[*].name}{"\n"}{end}'
+Expected output: Each pod should show two containers (app + istio-proxy).
+
+Verify Traffic Routing
+# Test traffic distribution
+for i in {1..20}; do curl -s http://$GATEWAY_URL | grep -o "v[12]"; done | sort | uniq -c
+Expected output: Distribution should match your configured weights.
+
+Verify Header-Based Routing
+curl -H "user-type: premium" http://$GATEWAY_URL
+Expected output: Should consistently return v2 response.
+
+Check Istio Configuration
+istioctl analyze -n microservices
+Expected output: No validation issues found.
+
+Troubleshooting Tips
+Pods not starting:
+
+Check if Minikube has enough resources: minikube status
+View pod logs: kubectl logs <pod-name> -n microservices -c istio-proxy
+Sidecar not injected:
+
+Verify namespace label: kubectl get namespace microservices --show-labels
+Recreate pods: kubectl rollout restart deployment -n microservices
+Traffic routing not working:
+
+Check VirtualService status: kubectl get virtualservice -n microservices
+Validate configuration: istioctl analyze -n microservices
+Check gateway: kubectl get gateway -n microservices
+Cannot access gateway:
+
+Verify ingress gateway is running: kubectl get pods -n istio-system | grep ingress
+Check service type: kubectl get svc -n istio-system istio-ingressgateway
+Conclusion
+You have successfully:
+
+Installed Istio service mesh on a Kubernetes cluster
+Deployed microservices with automatic sidecar injection
+Configured traffic routing using VirtualServices and DestinationRules
+Implemented traffic splitting and header-based routing patterns
+Service meshes like Istio provide powerful traffic management capabilities without requiring changes to application code. These skills are essential for managing complex microservices architectures in production environments, enabling advanced deployment strategies like canary releases, A/B testing, and gradual rollouts.
+
+Next Steps:
+
+Explore Istio's observability features (metrics, tracing, logs)
+Implement circuit breakers and retry policies
+Configure mutual TLS for service-to-service communication
+Practice fault injection for resilience testing
+Cleanup
+To remove all resources:
+
+kubectl delete namespace microservices
+istioctl uninstall --purge -y
+minikube stop
+minikube delete
