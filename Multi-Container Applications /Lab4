@@ -1,0 +1,371 @@
+Multi-Container Applications
+Prerequisites
+Basic understanding of Docker containers and images
+Familiarity with Dockerfile syntax
+Command-line proficiency in Linux
+Understanding of web application architecture (frontend/backend)
+Completed previous Docker labs or equivalent experience
+Learning Objectives
+By the end of this lab, you will be able to:
+
+Create custom Dockerfiles for different application components
+Configure multi-container applications using Docker Compose
+Establish container networking and inter-service communication
+Manage application dependencies and startup order
+Deploy and verify a complete multi-tier application stack
+Environment Setup
+Starting Your Lab Environment
+Click the Start Lab button to provision your Linux cloud machine
+Wait for the environment to be ready (approximately 2-3 minutes)
+Connect to your Linux machine via SSH or web terminal
+Install Required Tools
+# Update package manager
+sudo apt update
+
+# Install Docker
+sudo apt install -y docker.io
+
+# Start and enable Docker service
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add your user to docker group (avoid using sudo)
+sudo usermod -aG docker $USER
+
+# Apply group changes (or logout/login)
+newgrp docker
+
+# Install Docker Compose
+sudo apt install -y docker-compose
+
+# Verify installations
+docker --version
+docker-compose --version
+Task 1: Build a Multi-Container Application
+Overview
+You'll create a three-tier application consisting of:
+
+Frontend: Nginx web server serving a simple HTML page
+Backend: Python Flask API
+Database: Redis for data storage
+Step 1: Create Project Structure
+# Create project directory
+mkdir ~/multi-container-app
+cd ~/multi-container-app
+
+# Create subdirectories
+mkdir frontend backend
+
+# Create necessary files
+touch docker-compose.yml
+touch frontend/Dockerfile frontend/index.html frontend/nginx.conf
+touch backend/Dockerfile backend/app.py backend/requirements.txt
+Step 2: Build the Backend Service
+Create the Flask API application:
+
+nano backend/app.py
+Add the following starter code (complete the TODO sections):
+
+from flask import Flask, jsonify, request
+import redis
+import os
+
+app = Flask(__name__)
+
+# TODO: Configure Redis connection
+# Hint: Use environment variable REDIS_HOST
+redis_client = redis.Redis(
+    host=os.getenv('REDIS_HOST', 'localhost'),
+    port=6379,
+    decode_responses=True
+)
+
+@app.route('/api/visits', methods=['GET'])
+def get_visits():
+    # TODO: Increment visit counter in Redis
+    # TODO: Return JSON response with visit count
+    pass
+
+@app.route('/api/message', methods=['POST'])
+def set_message():
+    # TODO: Get message from request JSON
+    # TODO: Store message in Redis with key 'message'
+    # TODO: Return success response
+    pass
+
+@app.route('/api/message', methods=['GET'])
+def get_message():
+    # TODO: Retrieve message from Redis
+    # TODO: Return message in JSON format
+    pass
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
+Create requirements file:
+
+nano backend/requirements.txt
+flask==2.3.0
+redis==4.5.0
+Create the backend Dockerfile:
+
+nano backend/Dockerfile
+# TODO: Choose appropriate Python base image (version 3.9-slim recommended)
+FROM python:3.9-slim
+
+# TODO: Set working directory to /app
+WORKDIR /app
+
+# TODO: Copy requirements.txt and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# TODO: Copy application code
+COPY app.py .
+
+# TODO: Expose the Flask port (5000)
+EXPOSE 5000
+
+# TODO: Set the command to run the application
+CMD ["python", "app.py"]
+Step 3: Build the Frontend Service
+Create the HTML interface:
+
+nano frontend/index.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multi-Container App</title>
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px 0; cursor: pointer; }
+        #result { margin-top: 20px; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Multi-Container Application Demo</h1>
+    
+    <div>
+        <button onclick="getVisits()">Get Visit Count</button>
+        <button onclick="setMessage()">Set Message</button>
+        <button onclick="getMessage()">Get Message</button>
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+        
+        async function getVisits() {
+            // TODO: Implement fetch to /api/visits endpoint
+            // Display result in #result div
+        }
+        
+        async function setMessage() {
+            const message = prompt('Enter a message:');
+            // TODO: Implement POST to /api/message endpoint
+            // Display result in #result div
+        }
+        
+        async function getMessage() {
+            // TODO: Implement fetch to /api/message endpoint
+            // Display result in #result div
+        }
+    </script>
+</body>
+</html>
+Create Nginx configuration:
+
+nano frontend/nginx.conf
+server {
+    listen 80;
+    server_name localhost;
+    
+    location / {
+        root /usr/share/nginx/html;
+        index index.html;
+    }
+    
+    # TODO: Add proxy configuration for /api/ requests
+    # Proxy to backend service on port 5000
+    location /api/ {
+        # Add proxy_pass directive here
+        # Add necessary proxy headers
+    }
+}
+Create the frontend Dockerfile:
+
+nano frontend/Dockerfile
+# TODO: Use nginx:alpine as base image
+FROM nginx:alpine
+
+# TODO: Copy custom nginx configuration
+# Replace default config at /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# TODO: Copy HTML file to nginx html directory
+COPY index.html /usr/share/nginx/html/
+
+# TODO: Expose port 80
+EXPOSE 80
+
+# Note: nginx image has default CMD, no need to specify
+Task 2: Configure Docker Compose
+Step 1: Create Docker Compose Configuration
+nano docker-compose.yml
+Complete the following Docker Compose file:
+
+version: '3.8'
+
+services:
+  # TODO: Define redis service
+  redis:
+    image: redis:alpine
+    # Add container name
+    # Add network configuration
+    # Optional: Add volume for data persistence
+    
+  # TODO: Define backend service
+  backend:
+    # Specify build context
+    # Add container name
+    # Add port mapping (5000:5000)
+    # Add environment variables (REDIS_HOST)
+    # Add depends_on for redis
+    # Add network configuration
+    
+  # TODO: Define frontend service
+  frontend:
+    # Specify build context
+    # Add container name
+    # Add port mapping (8080:80)
+    # Add depends_on for backend
+    # Add network configuration
+
+# TODO: Define custom network
+networks:
+  app-network:
+    driver: bridge
+Step 2: Build and Deploy the Application
+# Build all images
+docker-compose build
+
+# Start all services in detached mode
+docker-compose up -d
+
+# View running containers
+docker-compose ps
+
+# View logs from all services
+docker-compose logs
+
+# View logs from specific service
+docker-compose logs backend
+Verification
+Step 1: Check Container Status
+# Verify all containers are running
+docker-compose ps
+
+# Expected output: 3 containers (frontend, backend, redis) in "Up" state
+
+# Check container networking
+docker network ls
+docker network inspect multi-container-app_app-network
+Step 2: Test Backend API
+# Test visit counter endpoint
+curl http://localhost:5000/api/visits
+
+# Test message endpoints
+curl -X POST http://localhost:5000/api/message \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Hello from Docker Compose"}'
+
+curl http://localhost:5000/api/message
+Step 3: Test Frontend Application
+# Check if frontend is accessible
+curl http://localhost:8080
+
+# Open in browser (if GUI available)
+# Navigate to: http://localhost:8080
+Step 4: Verify Inter-Container Communication
+# Execute command inside backend container
+docker-compose exec backend ping redis -c 3
+
+# Check Redis data
+docker-compose exec redis redis-cli KEYS '*'
+docker-compose exec redis redis-cli GET visits
+Step 5: Test Application Scaling
+# Scale backend service to 2 instances
+docker-compose up -d --scale backend=2
+
+# Verify scaled services
+docker-compose ps
+
+# Note: You'll need to configure load balancing for production use
+Troubleshooting Tips
+Common Issues and Solutions
+Containers fail to start:
+
+# Check logs for errors
+docker-compose logs [service-name]
+
+# Rebuild images if code changed
+docker-compose build --no-cache
+docker-compose up -d
+Port already in use:
+
+# Check what's using the port
+sudo netstat -tulpn | grep :8080
+
+# Stop conflicting service or change port in docker-compose.yml
+Cannot connect to Redis:
+
+# Verify Redis container is running
+docker-compose ps redis
+
+# Check network connectivity
+docker-compose exec backend ping redis
+
+# Verify environment variable
+docker-compose exec backend env | grep REDIS
+Changes not reflected:
+
+# Rebuild specific service
+docker-compose build backend
+docker-compose up -d backend
+
+# Force recreate containers
+docker-compose up -d --force-recreate
+Cleanup
+# Stop all services
+docker-compose down
+
+# Remove volumes (if created)
+docker-compose down -v
+
+# Remove images
+docker-compose down --rmi all
+
+# Clean up project directory (optional)
+cd ~
+rm -rf multi-container-app
+Conclusion
+In this lab, you successfully:
+
+Created custom Dockerfiles for multiple application components
+Configured a multi-container application using Docker Compose
+Established container networking for inter-service communication
+Deployed a complete three-tier application stack
+Verified container orchestration and service dependencies
+Key Takeaways
+Docker Compose simplifies multi-container application management
+Service networking allows containers to communicate using service names
+Build contexts enable organizing multi-service projects efficiently
+Dependency management ensures services start in the correct order
+Environment variables provide flexible configuration across environments
+Next Steps
+Explore Docker volumes for persistent data storage
+Implement health checks for service reliability
+Add environment-specific configurations (dev, staging, prod)
+Learn about container orchestration platforms (Kubernetes, Docker Swarm)
+Implement CI/CD pipelines for automated deployments
+This multi-container architecture forms the foundation for modern microservices applications and prepares you for cloud-native development practices.
