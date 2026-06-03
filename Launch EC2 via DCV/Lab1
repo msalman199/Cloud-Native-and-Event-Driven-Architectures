@@ -1,0 +1,197 @@
+Launch EC2 via NICE DCV
+Prerequisites
+Basic Linux command line knowledge
+Understanding of SSH connections
+Familiarity with text editors (nano or vi)
+AWS account with EC2 access permissions
+Learning Objectives
+By completing this lab, you will:
+
+Launch an EC2 instance on AWS
+Install and configure NICE DCV server on Linux
+Configure security groups for DCV access
+Connect to the instance using NICE DCV client
+Verify remote desktop functionality
+Environment Setup
+Note: This lab uses AWS EC2. You'll need:
+
+An active AWS account
+Access to AWS Management Console
+NICE DCV client installed on your local machine (download from https://download.nice-dcv.com/)
+Task 1: Launch EC2 Instance
+Step 1: Create EC2 Instance
+Log into AWS Management Console
+Navigate to EC2 Dashboard
+Click Launch Instance
+Configure the following:
+Name: dcv-lab-instance
+AMI: Ubuntu Server 22.04 LTS (64-bit x86)
+Instance Type: t2.medium (minimum for graphical desktop)
+Key Pair: Create new or select existing key pair (save the .pem file securely)
+Step 2: Configure Storage
+Set root volume to 30 GB gp3
+Keep default settings for other options
+Step 3: Review and Launch
+Click Launch Instance
+Wait for instance state to show Running (2-3 minutes)
+Note the Public IPv4 address from instance details
+Task 2: Configure Security Groups
+Step 1: Modify Security Group Rules
+Select your instance in EC2 console
+Click on the Security tab
+Click on the security group link
+Click Edit inbound rules
+Add the following rules:
+Type: SSH
+Protocol: TCP
+Port: 22
+Source: My IP (or 0.0.0.0/0 for testing only)
+
+Type: Custom TCP
+Protocol: TCP
+Port: 8443
+Source: My IP (or 0.0.0.0/0 for testing only)
+
+Type: Custom UDP
+Protocol: UDP
+Port: 8443
+Source: My IP (or 0.0.0.0/0 for testing only)
+Click Save rules
+Note: Port 8443 is the default NICE DCV port. Using "My IP" is more secure than 0.0.0.0/0.
+
+Task 3: Install NICE DCV Server
+Step 1: Connect to Instance via SSH
+# Change permissions on your key file
+chmod 400 your-key-pair.pem
+
+# Connect to instance (replace with your IP and key file)
+ssh -i your-key-pair.pem ubuntu@YOUR_INSTANCE_PUBLIC_IP
+Step 2: Update System and Install Desktop Environment
+# Update package lists
+sudo apt update
+
+# Install Ubuntu desktop environment (this takes 5-10 minutes)
+sudo apt install -y ubuntu-desktop
+
+# Install required dependencies
+sudo apt install -y mesa-utils
+Step 3: Download and Install NICE DCV Server
+# Download NICE DCV server package
+wget https://d1uj6qtbmh3dt5.cloudfront.net/2023.0/Servers/nice-dcv-2023.0-15065-ubuntu2204-x86_64.tgz
+
+# Extract the archive
+tar -xvzf nice-dcv-2023.0-15065-ubuntu2204-x86_64.tgz
+
+# Navigate to extracted directory
+cd nice-dcv-2023.0-15065-ubuntu2204-x86_64
+
+# Install DCV server
+sudo apt install -y ./nice-dcv-server_2023.0.15065-1_amd64.ubuntu2204.deb
+
+# Install DCV web viewer (optional, for browser access)
+sudo apt install -y ./nice-dcv-web-viewer_2023.0.15065-1_amd64.ubuntu2204.deb
+Step 4: Configure DCV Server
+# Create DCV configuration directory if not exists
+sudo mkdir -p /etc/dcv
+
+# Set password for ubuntu user
+sudo passwd ubuntu
+# Enter a strong password when prompted
+
+# Enable and start DCV server
+sudo systemctl enable dcvserver
+sudo systemctl start dcvserver
+Step 5: Create DCV Session
+# Create a console session for the ubuntu user
+sudo dcv create-session --type=console --owner ubuntu my-session
+
+# Verify session is running
+sudo dcv list-sessions
+Expected Output:
+
+Session: my-session (owner: ubuntu, type: console)
+Task 4: Connect Using DCV Client
+Step 1: Install DCV Client (On Your Local Machine)
+Windows/Mac: Download from https://download.nice-dcv.com/
+Linux:
+wget https://d1uj6qtbmh3dt5.cloudfront.net/2023.0/Clients/nice-dcv-viewer_2023.0.5483-1_amd64.ubuntu2204.deb
+sudo apt install -y ./nice-dcv-viewer_2023.0.5483-1_amd64.ubuntu2204.deb
+Step 2: Connect to DCV Session
+Open NICE DCV Viewer application
+Enter connection string: YOUR_INSTANCE_PUBLIC_IP:8443
+Click Trust & Connect when prompted about certificate
+Enter credentials:
+Username: ubuntu
+Password: (password you set earlier)
+Click Login
+Step 3: Access Desktop Environment
+You should now see the Ubuntu desktop interface
+The connection is encrypted and optimized for remote access
+Verification
+Verify DCV Installation
+# Check DCV server status
+sudo systemctl status dcvserver
+
+# Verify DCV session
+sudo dcv list-sessions
+
+# Check DCV version
+dcv version
+Verify Remote Access
+In the DCV client window, open a terminal (right-click desktop > Open Terminal)
+Run the following commands:
+# Check display variable
+echo $DISPLAY
+
+# Test graphics capability
+glxinfo | grep "OpenGL"
+
+# Verify you're connected via DCV
+who
+Test Desktop Functionality
+Open Firefox browser from Applications menu
+Open Files application
+Create a test text file on the desktop
+Verify mouse and keyboard input work smoothly
+Troubleshooting Tips
+Cannot connect to instance via SSH:
+
+Verify security group allows SSH (port 22) from your IP
+Check key pair permissions: chmod 400 your-key.pem
+Verify instance is in "running" state
+DCV client cannot connect:
+
+Confirm security group allows TCP/UDP 8443
+Verify DCV server is running: sudo systemctl status dcvserver
+Check session exists: sudo dcv list-sessions
+Ensure you're using the correct public IP address
+Black screen after connecting:
+
+Desktop environment may still be installing
+Wait 2-3 minutes and reconnect
+Verify desktop is installed: dpkg -l | grep ubuntu-desktop
+Session not found error:
+
+Recreate session: sudo dcv create-session --type=console --owner ubuntu my-session
+Ensure you're using the correct session name in connection
+Cleanup (Optional)
+To avoid AWS charges:
+
+Terminate EC2 instance from AWS Console
+Delete associated security groups if no longer needed
+Remove key pairs if not reusing
+Conclusion
+You have successfully:
+
+Launched an EC2 instance on AWS
+Installed and configured NICE DCV server on Ubuntu
+Set up appropriate security group rules for remote access
+Connected to the instance using NICE DCV client
+Verified full remote desktop functionality
+Significance: NICE DCV provides high-performance remote desktop access to cloud instances, enabling graphics-intensive applications, development environments, and remote workstations. This is particularly valuable for:
+
+Remote work scenarios requiring full desktop environments
+Running graphics applications in the cloud
+Accessing powerful cloud compute resources with a desktop interface
+Secure, encrypted remote access to Linux systems
+The skills learned here form the foundation for cloud-based virtual desktop infrastructure (VDI) and remote development environments.
