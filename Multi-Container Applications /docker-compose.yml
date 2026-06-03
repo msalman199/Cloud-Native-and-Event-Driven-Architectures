@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # TODO: Define redis service
+  redis:
+    image: redis:alpine
+    # Add container name
+    # Add network configuration
+    # Optional: Add volume for data persistence
+    
+  # TODO: Define backend service
+  backend:
+    # Specify build context
+    # Add container name
+    # Add port mapping (5000:5000)
+    # Add environment variables (REDIS_HOST)
+    # Add depends_on for redis
+    # Add network configuration
+    
+  # TODO: Define frontend service
+  frontend:
+    # Specify build context
+    # Add container name
+    # Add port mapping (8080:80)
+    # Add depends_on for backend
+    # Add network configuration
+
+# TODO: Define custom network
+networks:
+  app-network:
+    driver: bridge
