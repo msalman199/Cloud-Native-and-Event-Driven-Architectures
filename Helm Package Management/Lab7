@@ -1,0 +1,320 @@
+Helm Package Management
+Prerequisites
+Before starting this lab, you should have:
+
+Basic understanding of Kubernetes concepts (pods, services, deployments)
+Familiarity with YAML syntax
+Command-line experience in Linux
+A running Kubernetes cluster (minikube or kind)
+kubectl installed and configured
+Learning Objectives
+By the end of this lab, you will be able to:
+
+Understand Helm chart structure and components
+Create a custom Helm chart from scratch
+Deploy applications using Helm releases
+Manage Helm releases (install, upgrade, rollback)
+Use Helm templating features
+Environment Setup
+Step 1: Install Helm
+# Download and install Helm
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Verify installation
+helm version
+Step 2: Start Kubernetes Cluster
+# If using minikube
+minikube start --driver=docker
+
+# If using kind
+kind create cluster --name helm-lab
+
+# Verify cluster is running
+kubectl cluster-info
+kubectl get nodes
+Step 3: Add Helm Repository (Optional)
+# Add bitnami repository for reference
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+Task 1: Create a Custom Helm Chart
+Step 1: Generate Chart Structure
+# Create a new Helm chart
+helm create mywebapp
+
+# Explore the chart structure
+cd mywebapp
+tree .
+Expected structure:
+
+mywebapp/
+├── Chart.yaml
+├── values.yaml
+├── charts/
+└── templates/
+    ├── deployment.yaml
+    ├── service.yaml
+    ├── ingress.yaml
+    ├── _helpers.tpl
+    └── tests/
+Step 2: Modify Chart.yaml
+Edit Chart.yaml to define your chart metadata:
+
+apiVersion: v2
+name: mywebapp
+description: A simple web application Helm chart
+type: application
+version: 0.1.0
+appVersion: "1.0"
+maintainers:
+  - name: Your Name
+    email: your.email@example.com
+Step 3: Configure values.yaml
+Edit values.yaml with custom configuration:
+
+replicaCount: 2
+
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  tag: "1.25-alpine"
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# TODO: Add custom configuration values
+# - Environment variables
+# - ConfigMap data
+# - Additional labels
+Step 4: Customize Deployment Template
+Edit templates/deployment.yaml to add custom features:
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mywebapp.fullname" . }}
+  labels:
+    {{- include "mywebapp.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mywebapp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "mywebapp.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        # TODO: Add environment variables from values
+        # TODO: Add resource limits and requests
+        # TODO: Add liveness and readiness probes
+Step 5: Create a ConfigMap Template
+Create templates/configmap.yaml:
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mywebapp.fullname" . }}-config
+  labels:
+    {{- include "mywebapp.labels" . | nindent 4 }}
+data:
+  # TODO: Add configuration data
+  # Example: app.conf, database connection strings, etc.
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head><title>{{ .Chart.Name }}</title></head>
+    <body>
+      <h1>Welcome to {{ .Chart.Name }}</h1>
+      <p>Version: {{ .Chart.AppVersion }}</p>
+    </body>
+    </html>
+Step 6: Validate Chart
+# Lint the chart for errors
+helm lint .
+
+# Dry-run to see generated manifests
+helm install mywebapp . --dry-run --debug
+
+# Template the chart to view output
+helm template mywebapp .
+Task 2: Deploy and Manage Helm Releases
+Step 1: Install the Release
+# Install the chart
+helm install mywebapp-release ./mywebapp
+
+# List all releases
+helm list
+
+# Check deployment status
+kubectl get all -l app.kubernetes.io/name=mywebapp
+Step 2: Verify Deployment
+# Get release status
+helm status mywebapp-release
+
+# View release values
+helm get values mywebapp-release
+
+# View all manifests
+helm get manifest mywebapp-release
+
+# Test the application
+kubectl get pods
+kubectl get svc
+
+# Port-forward to access the service
+kubectl port-forward svc/mywebapp-release 8080:80
+# Access http://localhost:8080 in another terminal or browser
+Step 3: Upgrade the Release
+Modify values.yaml to change replica count:
+
+replicaCount: 3
+# Upgrade the release
+helm upgrade mywebapp-release ./mywebapp
+
+# Check revision history
+helm history mywebapp-release
+
+# Verify new replica count
+kubectl get pods -l app.kubernetes.io/name=mywebapp
+Step 4: Rollback Release
+# Rollback to previous revision
+helm rollback mywebapp-release 1
+
+# Verify rollback
+helm history mywebapp-release
+kubectl get pods -l app.kubernetes.io/name=mywebapp
+Step 5: Override Values During Install
+# Create a custom values file
+cat > custom-values.yaml <<EOF
+replicaCount: 4
+image:
+  tag: "1.24-alpine"
+service:
+  type: NodePort
+  port: 8080
+EOF
+
+# Install with custom values
+helm install mywebapp-custom ./mywebapp -f custom-values.yaml
+
+# Or use --set flag
+helm install mywebapp-inline ./mywebapp --set replicaCount=5
+Step 6: Package and Share Chart
+# Package the chart
+helm package ./mywebapp
+
+# This creates mywebapp-0.1.0.tgz
+
+# Install from package
+helm install mywebapp-from-pkg ./mywebapp-0.1.0.tgz
+
+# Generate index for chart repository (optional)
+helm repo index .
+Verification
+Verify Chart Creation
+# Check chart structure
+ls -la mywebapp/
+
+# Validate chart syntax
+helm lint mywebapp/
+
+# Expected output: No errors or warnings
+Verify Deployment
+# Check all releases
+helm list --all-namespaces
+
+# Verify pods are running
+kubectl get pods -l app.kubernetes.io/name=mywebapp
+
+# Check service endpoints
+kubectl get svc -l app.kubernetes.io/name=mywebapp
+
+# View release details
+helm get all mywebapp-release
+Verify Upgrade and Rollback
+# Check revision history
+helm history mywebapp-release
+
+# Should show multiple revisions with status
+Test Application Access
+# Port-forward and test
+kubectl port-forward svc/mywebapp-release 8080:80 &
+curl http://localhost:8080
+
+# Expected: HTML response from nginx
+Troubleshooting
+Common Issues
+Chart validation fails:
+
+# Check YAML syntax
+helm lint mywebapp/ --debug
+
+# Validate templates
+helm template mywebapp mywebapp/ --debug
+Release installation fails:
+
+# Check detailed error
+helm install mywebapp-release ./mywebapp --debug
+
+# View Kubernetes events
+kubectl get events --sort-by='.lastTimestamp'
+Pods not starting:
+
+# Check pod logs
+kubectl logs -l app.kubernetes.io/name=mywebapp
+
+# Describe pod for events
+kubectl describe pod <pod-name>
+Template rendering issues:
+
+# Test template with specific values
+helm template mywebapp ./mywebapp --set replicaCount=3 --debug
+Cleanup
+# Uninstall all releases
+helm uninstall mywebapp-release
+helm uninstall mywebapp-custom
+helm uninstall mywebapp-inline
+helm uninstall mywebapp-from-pkg
+
+# Verify cleanup
+helm list
+kubectl get all
+
+# Stop Kubernetes cluster (if needed)
+minikube stop
+# or
+kind delete cluster --name helm-lab
+Conclusion
+In this lab, you have:
+
+Created a custom Helm chart with proper structure and templates
+Configured chart metadata and default values
+Deployed applications using Helm releases
+Managed release lifecycle (install, upgrade, rollback)
+Used Helm templating to create flexible, reusable charts
+Packaged charts for distribution
+Helm simplifies Kubernetes application deployment by providing templating, versioning, and release management. These skills are essential for managing complex applications in production Kubernetes environments. You can now create reusable charts for your applications and manage their lifecycle efficiently.
+
+Next Steps
+Explore Helm hooks for pre/post-install actions
+Learn about chart dependencies and subcharts
+Practice with Helm chart repositories
+Implement advanced templating with conditionals and loops
+Study Helm security best practices
