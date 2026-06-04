@@ -1,0 +1,6 @@
+replicaCount: 4
+image:
+  tag: "1.24-alpine"
+service:
+  type: NodePort
+  port: 8080
